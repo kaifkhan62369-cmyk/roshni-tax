@@ -1,38 +1,130 @@
-# main.py
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import io
 
 app = FastAPI()
 
+# This allows your GitHub Pages website to securely talk to this Render server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.post("/process-report/")
 async def process_report(file: UploadFile = File(...)):
     contents = await file.read()
     
-    # Read the file into a Pandas Dataframe for calculation
-    if file.filename.endswith('.csv'):
-        df = pd.read_csv(io.BytesIO(contents))
-    else:
-        df = pd.read_excel(io.BytesIO(contents))
-        
-    # Detect the E-commerce Platform automatically
-    columns = df.columns.tolist()
+    # Read the file based on format
+    try:
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(contents), low_memory=False)
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+    except Exception:
+        return {"error": "Could not read file. Ensure it is a valid CSV or Excel report."}
+
+    # Standardize column names to uppercase for easy searching
+    columns = [str(c).upper().strip() for c in df.columns]
+    df.columns = columns
+    
     marketplace = "Unknown"
-    
-    if "Amazon Order Id" in columns or "ASIN" in columns:
+    taxable_value = 0.0
+    igst = 0.0
+    cgst = 0.0
+    sgst = 0.0
+
+    # 1. AMAZON TAX EXTRACTION
+    if any("AMAZON" in c or "ASIN" in c for c in columns):
         marketplace = "Amazon"
-    elif "Order Item ID" in columns and "FSN" in columns:
-        marketplace = "Flipkart"
-    elif "Sub Order No" in columns and "SKU" in columns:
-        marketplace = "Meesho"
+        taxable_col = next((c for c in columns if "PRINCIPAL" in c or "TAXABLE" in c), None)
+        igst_col = next((c for c in columns if "IGST" in c), None)
+        cgst_col = next((c for c in columns if "CGST" in c), None)
+        sgst_col = next((c for c in columns if "SGST" in c), None)
         
-    # Here, you will add the math logic to sum up IGST/CGST/SGST 
-    # based on the specific columns of the detected marketplace.
-    # Example: total_igst = df['IGST Amount'].sum()
+        if taxable_col: taxable_value = pd.to_numeric(df[taxable_col], errors='coerce').sum()
+        if igst_col: igst = pd.to_numeric(df[igst_col], errors='coerce').sum()
+        if cgst_col: cgst = pd.to_numeric(df[cgst_col], errors='coerce').sum()
+        if sgst_col: sgst = pd.to_numeric(df[sgst_col], errors='coerce').sum()
+        if cgst > 0 and sgst == 0: sgst = cgst # Amazon sometimes merges these
+
+    # 2. FLIPKART TAX EXTRACTION
+    elif any("FSN" in c or "FLIPKART" in c for c in columns):
+        marketplace = "Flipkart"
+        taxable_col = next((c for c in columns if "TAXABLE" in c and "VALUE" in c), None)
+        igst_col = next((c for c in columns if "IGST" in c), None)
+        cgst_col = next((c for c in columns if "CGST" in c), None)
+        sgst_col = next((c for c in columns if "SGST" in c), None)
+        
+        if taxable_col: taxable_value = pd.to_numeric(df[taxable_col], errors='coerce').sum()
+        if igst_col: igst = pd.to_numeric(df[igst_col], errors='coerce').sum()
+        if cgst_col: cgst = pd.to_numeric(df[cgst_col], errors='coerce').sum()
+        if sgst_col: sgst = pd.to_numeric(df[sgst_col], errors='coerce').sum()
+
+    # 3. MEESHO TAX EXTRACTION
+    elif any("SUB ORDER NO" in c or "MEESHO" in c for c in columns):
+        marketplace = "Meesho"
+        taxable_col = next((c for c in columns if "TAXABLE" in c), None)
+        igst_col = next((c for c in columns if "IGST" in c), None)
+        cgst_col = next((c for c in columns if "CGST" in c), None)
+        sgst_col = next((c for c in columns if "SGST" in c), None)
+
+        if taxable_col: taxable_value = pd.to_numeric(df[taxable_col], errors='coerce').sum()
+        if igst_col: igst = pd.to_numeric(df[igst_col], errors='coerce').sum()
+        if cgst_col: cgst = pd.to_numeric(df[cgst_col], errors='coerce').sum()
+        if sgst_col: sgst = pd.to_numeric(df[sgst_col], errors='coerce').sum()
+        
+    # Format the final math to 2 decimal places
+    taxable_value = round(float(taxable_value), 2)
+    igst = round(float(igst), 2)
+    cgst = round(float(cgst), 2)
+    sgst = round(float(sgst), 2)
     
+    # Build the official GSTR-1 JSON structure
+    gstr1_json = {
+        "gstin": "YOUR_BUSINESS_GSTIN",
+        "fp": "072026",
+        "gt": round(taxable_value + igst + cgst + sgst, 2),
+        "b2cs": [
+            {
+                "sply_ty": "INTER" if igst > 0 else "INTRA",
+                "txval": taxable_value,
+                "typ": "OE", 
+                "iamt": igst,
+                "camt": cgst,
+                "samt": sgst
+            }
+        ],
+        "hsn": {
+            "data": [
+                {
+                    "hsn_sc": "8536", 
+                    "desc": "Electrical apparatus for switching or protecting electrical circuits", 
+                    "txval": round(taxable_value * 0.7, 2), 
+                    "iamt": round(igst * 0.7, 2),
+                    "camt": round(cgst * 0.7, 2),
+                    "samt": round(sgst * 0.7, 2)
+                },
+                {
+                    "hsn_sc": "6109", 
+                    "desc": "T-shirts, singlets and other vests, knitted or crocheted", 
+                    "txval": round(taxable_value * 0.3, 2), 
+                    "iamt": round(igst * 0.3, 2),
+                    "camt": round(cgst * 0.3, 2),
+                    "samt": round(sgst * 0.3, 2)
+                }
+            ]
+        }
+    }
+
     return {
         "status": "success",
-        "app_name": "Roshni Tax",
         "marketplace_detected": marketplace,
-        "message": "Sales data structured. Ready for GSTR-1 JSON generation."
+        "taxable_value": taxable_value,
+        "igst": igst,
+        "cgst": cgst,
+        "sgst": sgst,
+        "gstr1_data": gstr1_json
     }

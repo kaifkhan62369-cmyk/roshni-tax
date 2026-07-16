@@ -30,10 +30,8 @@
         </div>
         
         <div id="results" style="display: none;">
-            <h3 style="margin-top: 0;">GSTR-1 Summary</h3>
-            <div class="tax-row"><span><strong>Total Taxable Value:</strong></span> <span>₹<span id="taxable">0.00</span></span></div>
-            <div class="tax-row"><span><strong>IGST:</strong></span> <span>₹<span id="igst">0.00</span></span></div>
-            <div class="tax-row"><span><strong>CGST / SGST:</strong></span> <span>₹<span id="cgst">0.00</span></span></div>
+            <h3 style="margin-top: 0;">System Status</h3>
+            <div class="tax-row"><span><strong>Result:</strong></span> <span id="status-message" style="color: green;">Success</span></div>
             <div style="text-align: center; margin-top: 20px;">
                 <button class="btn" style="background-color: #2ecc71;">Download GSTN-Ready JSON</button>
             </div>
@@ -46,18 +44,23 @@
 
         fileInput.addEventListener('change', function(e) {
             if(e.target.files.length > 0) {
-                // In a fully live app, this sends the file to the Python backend
-                let fileName = e.target.files[0].name;
-                
-                // Simulating the backend crunching the numbers
-                setTimeout(() => {
+                let file = e.target.files[0];
+                let formData = new FormData();
+                formData.append("file", file);
+
+                // PASTE YOUR RENDER URL IN THE LINE BELOW
+                fetch("https://roshni-tax-backend.onrender.com/process-report/", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
                     results.style.display = 'block';
-                    // Example dummy data showing extraction success
-                    document.getElementById('taxable').innerText = "1,25,000.00";
-                    document.getElementById('igst').innerText = "18,500.00";
-                    document.getElementById('cgst').innerText = "2,000.00";
-                    alert(fileName + " processed successfully by Roshni Tax!");
-                }, 1000);
+                    document.getElementById('status-message').innerText = file.name + " processed! Detected: " + data.marketplace_detected;
+                })
+                .catch(error => {
+                    alert("Error connecting to the tax engine. Check your Render URL.");
+                });
             }
         });
     </script>

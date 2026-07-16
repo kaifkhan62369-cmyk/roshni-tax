@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roshni Tax - E-commerce GST Filer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; margin: 0; padding: 40px; }
+        .container { max-width: 700px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
+        h1 { color: #1a1a1a; margin-bottom: 5px; font-size: 2.5em; }
+        p.subtitle { color: #666; margin-bottom: 30px; font-size: 1.1em; }
+        .upload-area { border: 2px dashed #4a90e2; padding: 50px 20px; border-radius: 12px; cursor: pointer; transition: 0.3s; background-color: #f1f7fd; }
+        .upload-area:hover { background-color: #e2effa; }
+        .btn { background-color: #4a90e2; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 20px; transition: 0.3s; }
+        .btn:hover { background-color: #357abd; }
+        #results { margin-top: 40px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; text-align: left; background-color: #fafafa; }
+        .tax-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .tax-row:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Roshni Tax</h1>
+        <p class="subtitle">Automated GST Filing & HSN Summaries</p>
+        
+        <div class="upload-area" id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <h3>Drag & Drop Sales Reports Here</h3>
+            <p style="color: #777;">(Supports Amazon, Flipkart, and Meesho Excel/CSV files)</p>
+            <input type="file" id="file-input" style="display: none;" accept=".csv, .xlsx, .xls">
+        </div>
+        
+        <div id="results" style="display: none;">
+            <h3 style="margin-top: 0;">GSTR-1 Summary</h3>
+            <div class="tax-row"><span><strong>Total Taxable Value:</strong></span> <span>₹<span id="taxable">0.00</span></span></div>
+            <div class="tax-row"><span><strong>IGST:</strong></span> <span>₹<span id="igst">0.00</span></span></div>
+            <div class="tax-row"><span><strong>CGST / SGST:</strong></span> <span>₹<span id="cgst">0.00</span></span></div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn" style="background-color: #2ecc71;">Download GSTN-Ready JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const results = document.getElementById('results');
+
+        fileInput.addEventListener('change', function(e) {
+            if(e.target.files.length > 0) {
+                // In a fully live app, this sends the file to the Python backend
+                let fileName = e.target.files[0].name;
+                
+                // Simulating the backend crunching the numbers
+                setTimeout(() => {
+                    results.style.display = 'block';
+                    // Example dummy data showing extraction success
+                    document.getElementById('taxable').innerText = "1,25,000.00";
+                    document.getElementById('igst').innerText = "18,500.00";
+                    document.getElementById('cgst').innerText = "2,000.00";
+                    alert(fileName + " processed successfully by Roshni Tax!");
+                }, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

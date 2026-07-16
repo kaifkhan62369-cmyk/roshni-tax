@@ -1,0 +1,38 @@
+# main.py
+from fastapi import FastAPI, UploadFile, File
+import pandas as pd
+import io
+
+app = FastAPI()
+
+@app.post("/process-report/")
+async def process_report(file: UploadFile = File(...)):
+    contents = await file.read()
+    
+    # Read the file into a Pandas Dataframe for calculation
+    if file.filename.endswith('.csv'):
+        df = pd.read_csv(io.BytesIO(contents))
+    else:
+        df = pd.read_excel(io.BytesIO(contents))
+        
+    # Detect the E-commerce Platform automatically
+    columns = df.columns.tolist()
+    marketplace = "Unknown"
+    
+    if "Amazon Order Id" in columns or "ASIN" in columns:
+        marketplace = "Amazon"
+    elif "Order Item ID" in columns and "FSN" in columns:
+        marketplace = "Flipkart"
+    elif "Sub Order No" in columns and "SKU" in columns:
+        marketplace = "Meesho"
+        
+    # Here, you will add the math logic to sum up IGST/CGST/SGST 
+    # based on the specific columns of the detected marketplace.
+    # Example: total_igst = df['IGST Amount'].sum()
+    
+    return {
+        "status": "success",
+        "app_name": "Roshni Tax",
+        "marketplace_detected": marketplace,
+        "message": "Sales data structured. Ready for GSTR-1 JSON generation."
+    }

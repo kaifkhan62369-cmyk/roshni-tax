@@ -54,12 +54,19 @@
                     body: formData
                 })
                 .then(response => response.json())
-                .then(data => {
-                    results.style.display = 'block';
-                    document.getElementById('status-message').innerText = file.name + " processed! Detected: " + data.marketplace_detected;
-                })
-                .catch(error => {
-                    alert("Error connecting to the tax engine. Check your Render URL.");
+                ..then(response => response.json())
+             .then(data => {
+                 if(data.error) {
+                     document.getElementById('status-message').innerText = "Error: " + data.error;
+                     document.getElementById('status-message').style.color = "red";
+                 } else {
+                     document.getElementById('status-message').innerText = "Success! " + data.marketplace_detected + " math complete. Taxable: ₹" + data.taxable_value;
+                     document.getElementById('status-message').style.color = "green";
+
+                     // Grab the real math from the server
+                     generatedJsonData = data.gstr1_data;
+                 }
+             })
                 });
             }
         });
